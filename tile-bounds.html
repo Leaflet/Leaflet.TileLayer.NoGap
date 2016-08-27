@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Leaflet debug page</title>
+
+	<link rel="stylesheet" href="../Leaflet/dist/leaflet.css" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<script type="text/javascript" src="../Leaflet/dist/leaflet-src.js"></script>
+	<script type="text/javascript" src="L.TileLayer.NoGap.js"></script>
+	<style>
+	#map {
+		margin: 128px;
+		width: auto;
+		overflow: visible;
+		width: calc( 100vw - 256px );
+		height: calc( 100vh - 256px );
+	}
+	
+	canvas {
+		border: 1px dotted black;
+	}
+	</style>
+</head>
+<body>
+
+	Stuff to test tilelayers as canvases to prevent the 1px tile gap.
+
+	<button onclick='map.zoomIn(0.1)'> Zoom + 0.1 </button>
+	<button onclick='map.zoomOut(0.1)'> Zoom - 0.1 </button>
+
+	<div id="map" class="map"></div>
+
+	<script type="text/javascript">
+		var mapopts =  {
+// 			zoomSnap: 0.1
+		};
+
+		var osmUrl = 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+			osmAttrib = '&copy; <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+			osm = new L.TileLayer.NoGap(osmUrl, {maxZoom: 18, attribution: osmAttrib});
+		
+		var map = L.map('map', mapopts).setView([0,0],0);
+
+		map.addLayer(osm);
+		
+		var grid = L.gridLayer({
+			attribution: 'Grid Layer',
+// 			tileSize: L.point(150, 80)
+		});
+
+		grid.createTile = function (coords, done) {
+			var tile = document.createElement('div');
+			tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
+// 			tile.style.border = '2px solid red';
+// 			tile.style.background = 'white';
+
+			// test async
+			setTimeout(function () {
+				done(null, tile);
+			}, 0);
+
+			return tile;
+		};
+
+		map.addLayer(grid);
+
+	</script>
+</body>
+</html>
