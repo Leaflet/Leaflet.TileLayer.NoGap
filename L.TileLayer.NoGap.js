@@ -3,39 +3,13 @@
 L.TileLayer.NoGap = L.TileLayer.extend({
 
 	options: {
+		/// TODO: This should instead check for the crossOrigin option and enable/disable functionality
+		/// accordingly.
 		crossOrigin: true
 	},
-	
-	onAdd: function(map) {
-		// Create a <canvas> in addition to the tile wrapper
-		L.TileLayer.prototype.onAdd.call(this, map);
 
-// 		this._canvas = L.DomUtil.create('canvas');
-// 		this.getPane().appendChild(this._canvas)
-// 		this._container.appendChild(this._canvas);
-// 		this._ctx = this._canvas.getContext(2d);
-		
-// 		map.on('resize', this._updateCanvasSize, this);
-		
-	},
-
-	
-	_updateCanvasSize: function() {
-		
-	},
-	
-
-/// TODO: _resetGrid
-	
-	
-/// TODO: _update: check the tileRange and update the canvasRange of the canvas of the current level
-
-
-/// TODO: _updateLevels: Check if there is a canvas in the current level, create it if not.
-	
-	
 	_updateLevels: function() {
-		
+
 		var zoom = this._tileZoom,
 		    maxZoom = this.options.maxZoom;
 
@@ -52,17 +26,16 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 				// delete this._levels[z]; // Will be done by parent.
 			}
 		}
-		
+
 		L.TileLayer.prototype._updateLevels.call(this);
-		
+
 		// Create a canvas for the current level if it doesn't exist.
 		var level = this._levels[zoom];
 		if (!level.canvas) {
 			level.canvas = L.DomUtil.create('canvas', 'leaflet-zoom-animated', this._container);
 			level.ctx = level.canvas.getContext('2d');
-			
-			this._resetCanvasSize(level);
 
+			this._resetCanvasSize(level);
 
 			canvasSize = level.canvasPxRange.max.subtract(level.canvasPxRange.min);
 
@@ -71,73 +44,83 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 		}
 	},
-	
+
 	_resetCanvasSize: function(level) {
-		var pixelBounds = this._getTiledPixelBounds(map.getCenter()),
+		var buff = this.options.keepBuffer,
+			pixelBounds = this._getTiledPixelBounds(map.getCenter()),
 			tileRange = this._pxBoundsToTileRange(pixelBounds),
-			tileSize = this.getTileSize(),
-			pixelRange = L.bounds(tileRange.min.scaleBy(tileSize),
-			tileRange.max.add([1,1]).scaleBy(tileSize)),
+			tileSize = this.getTileSize();
+
+		tileRange.min = tileRange.min.subtract([buff, buff]);	// This adds the no-prune buffer
+		tileRange.max = tileRange.max.add([buff+1, buff+1]);
+
+		var pixelRange = L.bounds(
+				tileRange.min.scaleBy(tileSize),
+				tileRange.max.add([1, 1]).scaleBy(tileSize)	// This prevents an off-by-one when checking if tiles are inside
+			),
 			mustRepositionCanvas = false;
-			
+
+		// A bit of extra space
+// 		tileRange.extend(tileRange.max.add([1,1]));
+
 		// Translate the canvas contents if it's moved around
 		if (level.canvasRange) {
-			
+
 			var offset = level.canvasRange.min.subtract(tileRange.min).scaleBy(this.getTileSize());
 			var w = level.canvas.width;
 			var h = level.canvas.height;
-			
+
 			console.log('Repositioning canvas contents by ', offset);
-			
+
 			level.ctx.drawImage(level.canvas, offset.x, offset.y);
-			
+
 			// Top strip
 			if (offset.y > 0) level.ctx.clearRect(0, 0, w, offset.y);
-			
+
 			// Bottom strip
 			if (offset.y < 0) level.ctx.clearRect(0, h + offset.y, w, -offset.y);
-			
+
 			// Left strip
 			if (offset.x > 0) level.ctx.clearRect(0, 0, offset.x, h);
-			
+
 			// Right strip
 			if (offset.x < 0) level.ctx.clearRect(w + offset.x, 0, -offset.x, h);
-			
-			
+
+
 			mustRepositionCanvas = true;	// Wait until new props are set
-			
+
 			/// TODO: Loop through the level's tiles, mark tiles outside the canvas as removed.
-			
+
 		}
-			
+
 		level.canvasRange = tileRange;
 		level.canvasPxRange = pixelRange;
 		level.canvasOrigin = pixelRange.min;
-		
+
 		console.log('Canvas tile range: ', tileRange.min, tileRange.max );
-		console.log('Canvas pixel range: ', pixelRange.min, pixelRange.max );
-		console.log('Level origin: ', level.origin );
+// 		console.log('Canvas pixel range: ', pixelRange.min, pixelRange.max );
+// 		console.log('Level origin: ', level.origin );
 
 		if (mustRepositionCanvas) {
 			this._setCanvasZoomTransform(level, this._map.getCenter(), this._map.getZoom());
 		}
-		
+
 		/// TODO: What to do when the canvas size has to change due a map "resize" event or so???
 // 		if ()
 	},
-	
+
 
 	/// set transform/position of canvas, in addition to the transform/position of the individual tile container
 	_setZoomTransform: function(level, center, zoom) {
-		
+
 		L.TileLayer.prototype._setZoomTransform.call(this, level, center, zoom);
-		
+
 		if (!level.canvasOrigin) return;	/// FIXME: Move around the _updateLevels code so canvasOrigin exists by the time this is called.
-		
+
 		this._setCanvasZoomTransform(level, center, zoom);
 	},
-	
-	
+
+
 	// This will get called twice:
 	// * From _setZoomTransform
 	// * When the canvas has shifted due to a pan
@@ -152,7 +135,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			L.DomUtil.setPosition(level.canvas, translate);
 		}
 	},
-	
+
 	// Rewrite _updateOpacity to make a func call to dump the faded-in tile into the canvas
 	_updateOpacity: function () {
 		if (!this._map) { return; }
@@ -176,7 +159,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			if (fade < 1) {
 				nextFrame = true;
 			} else {
-				if (tile.active) { 
+				if (tile.active) {
 					willPrune = true;
 				} else {
 					this._dumpTileToCanvas(tile);	////// !!!!!!
@@ -193,33 +176,33 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			this._fadeFrame = L.Util.requestAnimFrame(this._updateOpacity, this);
 		}
 	},
-	
-	
+
+
 	_dumpTileToCanvas: function(tile){
-		
+
 		var level = this._levels[tile.coords.z];
-		
+
 		if (!level.canvasRange.contains(tile.coords)) {
 			/// FIXME: Instead of resetting the canvas size,
 			/// calculate the canvas new offset based on
 			/// how out the tile is from the canvas range.
 			this._resetCanvasSize(level);
 		}
-		
+
 		var offset = L.point(tile.coords.x, tile.coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
-		
+
 // 		console.log('Should dump tile to canvas:', tile);
 // 		console.log('Should dump from tile coords:', tile.coords);
-		console.log('Should dump to canvas px coords:', tile.coords, offset);
-		
+// 		console.log('Should dump to canvas px coords:', tile.coords, offset);
+
 		level.ctx.drawImage(tile.el, offset.x, offset.y);
-		
+
 		L.DomUtil.remove(tile.el);
-		
+
 	},
-	
-	
-	
+
+
+
 });
 
 

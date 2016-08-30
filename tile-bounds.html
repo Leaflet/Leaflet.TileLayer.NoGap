@@ -11,13 +11,13 @@
 	<script type="text/javascript" src="L.TileLayer.NoGap.js"></script>
 	<style>
 	#map {
-		margin: 128px;
+		margin: 256px;
 		width: auto;
 		overflow: visible;
-		width: calc( 100vw - 256px );
-		height: calc( 100vh - 256px );
+		width: calc( 100vw - 512px );
+		height: calc( 100vh - 512px );
 	}
-	
+
 	canvas {
 		border: 1px dotted black;
 	}
@@ -39,12 +39,15 @@
 
 		var osmUrl = 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 			osmAttrib = '&copy; <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-			osm = new L.TileLayer.NoGap(osmUrl, {maxZoom: 18, attribution: osmAttrib});
-		
+			osm = new L.TileLayer.NoGap(osmUrl, {
+				maxZoom: 18,
+				attribution: osmAttrib
+			});
+
 		var map = L.map('map', mapopts).setView([0,0],0);
 
 		map.addLayer(osm);
-		
+
 		var grid = L.gridLayer({
 			attribution: 'Grid Layer',
 // 			tileSize: L.point(150, 80)
@@ -53,7 +56,9 @@
 		grid.createTile = function (coords, done) {
 			var tile = document.createElement('div');
 			tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
-// 			tile.style.border = '2px solid red';
+			tile.style.lineHeight = '256px';
+			tile.style.textAlign = 'center';
+// 			tile.style.border = '0.5px dashed pink';
 // 			tile.style.background = 'white';
 
 			// test async
