@@ -8,31 +8,45 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		crossOrigin: true
 	},
 
-	_updateLevels: function() {
-
+	// Full rewrite of L.GridLayer._updateLevels
+	_updateLevels() {
 		var zoom = this._tileZoom,
-		    maxZoom = this.options.maxZoom;
+		maxZoom = this.options.maxZoom;
 
 		if (zoom === undefined) { return undefined; }
 
-		// Reset the z-index of the canvas, or remove the canvas
-		// This is in addition to this._levels[z].el, which is
-		// the container for individual tiles.
 		for (var z in this._levels) {
-			if (this._levels[z].el.children.length || z === zoom) {
+			console.log(this._levels[z].el.children.length, (zoom - z));
+			if (this._levels[z].el.children.length || (zoom - z) === 0) {
+				this._levels[z].el.style.zIndex = maxZoom - Math.abs(zoom - z);
 				this._levels[z].canvas.style.zIndex = maxZoom - Math.abs(zoom - z);
 			} else {
+				L.DomUtil.remove(this._levels[z].el);
 				L.DomUtil.remove(this._levels[z].canvas);
-				// delete this._levels[z]; // Will be done by parent.
+				this._removeTilesAtZoom(z);
+				delete this._levels[z];
 			}
 		}
 
-		L.TileLayer.prototype._updateLevels.call(this);
+		var level = this._levels[zoom],
+		map = this._map;
 
-		// Create a canvas for the current level if it doesn't exist.
-		var level = this._levels[zoom];
-		if (!level.canvas) {
-			level.canvas = L.DomUtil.create('canvas', 'leaflet-zoom-animated', this._container);
+		if (!level) {
+			level = this._levels[zoom] = {};
+
+			level.el = L.DomUtil.create('div', 'leaflet-tile-container leaflet-zoom-animated', this._container);
+			level.el.style.zIndex = maxZoom;
+
+			level.origin = map.project(map.unproject(map.getPixelOrigin()), zoom).round();
+			level.zoom = zoom;
+
+			this._setZoomTransform(level, map.getCenter(), map.getZoom());
+
+			// force the browser to consider the newly added element for transition
+			L.Util.falseFn(level.el.offsetWidth);
+
+
+			level.canvas = L.DomUtil.create('canvas', 'leaflet-tile-container leaflet-zoom-animated', this._container);
 			level.ctx = level.canvas.getContext('2d');
 
 			this._resetCanvasSize(level);
@@ -41,9 +55,12 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 			level.canvas.width  = canvasSize.x;
 			level.canvas.height = canvasSize.y;
-
 		}
+
+		this._level = level;
+		return level;
 	},
+
 
 	_resetCanvasSize: function(level) {
 		var buff = this.options.keepBuffer,
@@ -60,9 +77,6 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			),
 			mustRepositionCanvas = false;
 
-		// A bit of extra space
-// 		tileRange.extend(tileRange.max.add([1,1]));
-
 		// Translate the canvas contents if it's moved around
 		if (level.canvasRange) {
 
@@ -70,7 +84,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			var w = level.canvas.width;
 			var h = level.canvas.height;
 
-			console.log('Repositioning canvas contents by ', offset);
+// 			console.log('Repositioning canvas contents by ', offset);
 
 			level.ctx.drawImage(level.canvas, offset.x, offset.y);
 
@@ -86,18 +100,14 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			// Right strip
 			if (offset.x < 0) level.ctx.clearRect(w + offset.x, 0, -offset.x, h);
 
-
 			mustRepositionCanvas = true;	// Wait until new props are set
-
-			/// TODO: Loop through the level's tiles, mark tiles outside the canvas as removed.
-
 		}
 
 		level.canvasRange = tileRange;
 		level.canvasPxRange = pixelRange;
 		level.canvasOrigin = pixelRange.min;
 
-		console.log('Canvas tile range: ', tileRange.min, tileRange.max );
+// 		console.log('Canvas tile range: ', level, tileRange.min, tileRange.max );
 // 		console.log('Canvas pixel range: ', pixelRange.min, pixelRange.max );
 // 		console.log('Level origin: ', level.origin );
 
@@ -114,6 +124,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 	_setZoomTransform: function(level, center, zoom) {
 
 		L.TileLayer.prototype._setZoomTransform.call(this, level, center, zoom);
+// 		console.log('_setZoomTransform', level, center, zoom);
 
 		if (!level.canvasOrigin) return;	/// FIXME: Move around the _updateLevels code so canvasOrigin exists by the time this is called.
 
@@ -125,6 +136,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 	// * From _setZoomTransform
 	// * When the canvas has shifted due to a pan
 	_setCanvasZoomTransform: function(level, center, zoom){
+// 		console.log('_setCanvasZoomTransform', level, center, zoom);
 		var scale = this._map.getZoomScale(zoom, level.zoom),
 		    translate = level.canvasOrigin.multiplyBy(scale)
 		        .subtract(this._map._getNewPixelOrigin(center, zoom)).round();
@@ -182,8 +194,12 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 		var level = this._levels[tile.coords.z];
 
+		/// TODO: Check if the tile is inside the currently visible map bounds
+		/// There is a possible race condition when tiles are loaded after they
+		/// have been panned outside of the map.
+
 		if (!level.canvasRange.contains(tile.coords)) {
-			/// FIXME: Instead of resetting the canvas size,
+			/// Possible improvement: Instead of resetting the canvas size,
 			/// calculate the canvas new offset based on
 			/// how out the tile is from the canvas range.
 			this._resetCanvasSize(level);
@@ -207,5 +223,35 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 
 
+/// HACK!!!
+/// Make the zoom animations much, much slower by tweaking a hard-coded timeout value
+/*
+L.Map.include({
+	_animateZoom: function (center, zoom, startAnim, noUpdate) {
+		if (startAnim) {
+			this._animatingZoom = true;
+
+			// remember what center/zoom to set after animation
+			this._animateToCenter = center;
+			this._animateToZoom = zoom;
+
+			L.DomUtil.addClass(this._mapPane, 'leaflet-zoom-anim');
+		}
+
+		// @event zoomanim: ZoomAnimEvent
+		// Fired on every frame of a zoom animation
+		this.fire('zoomanim', {
+			center: center,
+			zoom: zoom,
+			noUpdate: noUpdate
+		});
+
+		// Work around webkit not firing 'transitionend', see https://github.com/Leaflet/Leaflet/issues/3689, 2693
+		//// HACK!!!!
+// 		setTimeout(L.bind(this._onZoomTransitionEnd, this), 250);
+		setTimeout(L.bind(this._onZoomTransitionEnd, this), 5050);
+		//// HACK!!!!
+	}
+});*/
 
 
