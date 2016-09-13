@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Leaflet debug page</title>
+
+<link href="https://leafletjs-cdn.s3.amazonaws.com/content/leaflet/master/leaflet.css" rel="stylesheet" type="text/css" />
+<script src="https://leafletjs-cdn.s3.amazonaws.com/content/leaflet/master/leaflet-src.js"></script>
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<script type="text/javascript" src="L.TileLayer.NoGap.js"></script>
+	<style>
+	#map {
+		margin: 256px;
+		width: auto;
+		overflow: visible;
+		width: calc( 100vw - 512px );
+		height: calc( 100vh - 512px );
+	}
+
+	canvas {
+		border: 1px dotted black;
+	}
+
+	div.tile-coords {
+		line-height: 128px;
+		text-align: center;
+		color: red;
+		font-size: 12.8px;
+		max-width: 128px;
+	}
+
+/* 	Make the zoom animation slower */
+
+/*.leaflet-zoom-anim .leaflet-zoom-animated {
+	-webkit-transition: -webkit-transform 5s cubic-bezier(0,0,0.25,1);
+	   -moz-transition:    -moz-transform 5s cubic-bezier(0,0,0.25,1);
+	     -o-transition:      -o-transform 5s cubic-bezier(0,0,0.25,1);
+	        transition:         transform 5s cubic-bezier(0,0,0.25,1);
+	}
+*/
+
+
+	</style>
+</head>
+<body>
+
+	<p>Stuff to test tilelayers as canvases to prevent the 1px tile gap.</p>
+	<p>Red tiles are from a <code>GridLayer</code>, green tiles are from a <code>TileLayer.NoGap</code>. They should always match.</p>
+
+
+	<button onclick='map.zoomIn(0.1)'> Zoom + 0.1 </button>
+	<button onclick='map.zoomOut(0.1)'> Zoom - 0.1 </button>
+
+	<div id="map" class="map"></div>
+
+	<script type="text/javascript">
+
+		var tileSize = 128;
+
+// 		var DebugTileLayer = L.TileLayer.extend({
+		var DebugTileLayer = L.TileLayer.NoGap.extend({
+			getTileUrl: function getTileUrl(coords) {
+
+				var canvas = document.createElement('canvas');
+
+				var tileSize = this.getTileSize();
+				canvas.setAttribute('width', tileSize.x);
+				canvas.setAttribute('height', tileSize.y);
+
+				var ctx = canvas.getContext('2d');
+				ctx.strokeStyle = 'green';
+				ctx.fillStyle = 'green';
+
+				ctx.strokeRect(2, 2, tileSize.x - 4, tileSize.y - 4);
+
+				ctx.font = (tileSize.x / 10) + "px Sans"
+				ctx.fillText( coords.x + "," + coords.y + "," + coords.z,
+					tileSize.x / 4 + Math.random() * 10,
+					tileSize.y * 3/4 + Math.random() * 10);
+
+
+// 				return tile;
+				return canvas.toDataURL();
+			}
+		});
+
+
+		var mapopts =  {
+			zoomSnap: 0.1
+		};
+
+
+		var debug = new DebugTileLayer(null, {
+			tileSize: tileSize,
+			keepBuffer: 0,
+		});
+
+		var map = L.map('map', mapopts).setView([0,0],0);
+
+		map.addLayer(debug);
+
+		var grid = L.gridLayer({
+			attribution: 'Grid Layer',
+// 			tileSize: L.point(150, 80),
+			tileSize: tileSize
+		});
+
+		grid.createTile = function (coords) {
+			var tile = L.DomUtil.create('div', 'tile-coords');
+			tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
+
+			return tile;
+		};
+
+		map.addLayer(grid);
+
+	</script>
+</body>
+</html>
