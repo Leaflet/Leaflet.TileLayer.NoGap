@@ -16,7 +16,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		if (zoom === undefined) { return undefined; }
 
 		for (var z in this._levels) {
-			console.log(this._levels[z].el.children.length, (zoom - z));
+// 			console.log(this._levels[z].el.children.length, (zoom - z));
 			if (this._levels[z].el.children.length || (zoom - z) === 0) {
 				this._levels[z].el.style.zIndex = maxZoom - Math.abs(zoom - z);
 				this._levels[z].canvas.style.zIndex = maxZoom - Math.abs(zoom - z);
@@ -50,11 +50,6 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			level.ctx = level.canvas.getContext('2d');
 
 			this._resetCanvasSize(level);
-
-			canvasSize = level.canvasPxRange.max.subtract(level.canvasPxRange.min);
-
-			level.canvas.width  = canvasSize.x;
-			level.canvas.height = canvasSize.y;
 		}
 
 		this._level = level;
@@ -75,30 +70,33 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 				tileRange.min.scaleBy(tileSize),
 				tileRange.max.add([1, 1]).scaleBy(tileSize)	// This prevents an off-by-one when checking if tiles are inside
 			),
-			mustRepositionCanvas = false;
+			mustRepositionCanvas = false,
+			neededSize = pixelRange.max.subtract(pixelRange.min);
+
+		// Resize the canvas, if needed, and only to make it bigger.
+		if (neededSize.x > level.canvas.width || neededSize.y > level.canvas.height) {
+			// Resizing canvases erases the currently drawn content, I'm afraid.
+			var oldSize = {x: level.canvas.width, y: level.canvas.height};
+			var data = level.ctx.getImageData(0, 0, oldSize.x, oldSize.y);
+			console.info('Resizing canvas from ', oldSize, 'to ', neededSize);
+			level.canvas.width = neededSize.x;
+			level.canvas.height = neededSize.y;
+			level.ctx.putImageData(data, 0, 0, 0, 0, oldSize.x, oldSize.y);
+		}
 
 		// Translate the canvas contents if it's moved around
 		if (level.canvasRange) {
-
 			var offset = level.canvasRange.min.subtract(tileRange.min).scaleBy(this.getTileSize());
-			var w = level.canvas.width;
-			var h = level.canvas.height;
 
-// 			console.log('Repositioning canvas contents by ', offset);
+			console.info('Offsetting by ', offset);
 
+			// By default, canvases copy things "on top of" existing pixels, but we want
+			// this to *replace* the existing pixels when doing a drawImage() call.
+			// This will also clear the sides, so no clearRect() calls are needed to make room
+			// for the new tiles.
+			level.ctx.globalCompositeOperation = 'copy';
 			level.ctx.drawImage(level.canvas, offset.x, offset.y);
-
-			// Top strip
-			if (offset.y > 0) level.ctx.clearRect(0, 0, w, offset.y);
-
-			// Bottom strip
-			if (offset.y < 0) level.ctx.clearRect(0, h + offset.y, w, -offset.y);
-
-			// Left strip
-			if (offset.x > 0) level.ctx.clearRect(0, 0, offset.x, h);
-
-			// Right strip
-			if (offset.x < 0) level.ctx.clearRect(w + offset.x, 0, -offset.x, h);
+			level.ctx.globalCompositeOperation = 'source-over';
 
 			mustRepositionCanvas = true;	// Wait until new props are set
 		}
@@ -114,29 +112,22 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		if (mustRepositionCanvas) {
 			this._setCanvasZoomTransform(level, this._map.getCenter(), this._map.getZoom());
 		}
-
-		/// TODO: What to do when the canvas size has to change due a map "resize" event or so???
-// 		if ()
 	},
 
 
 	/// set transform/position of canvas, in addition to the transform/position of the individual tile container
 	_setZoomTransform: function(level, center, zoom) {
-
 		L.TileLayer.prototype._setZoomTransform.call(this, level, center, zoom);
-// 		console.log('_setZoomTransform', level, center, zoom);
-
-		if (!level.canvasOrigin) return;	/// FIXME: Move around the _updateLevels code so canvasOrigin exists by the time this is called.
-
 		this._setCanvasZoomTransform(level, center, zoom);
 	},
 
 
 	// This will get called twice:
 	// * From _setZoomTransform
-	// * When the canvas has shifted due to a pan
+	// * When the canvas has shifted due to a new tile being loaded
 	_setCanvasZoomTransform: function(level, center, zoom){
 // 		console.log('_setCanvasZoomTransform', level, center, zoom);
+		if (!level.canvasOrigin) { return; }
 		var scale = this._map.getZoomScale(zoom, level.zoom),
 		    translate = level.canvasOrigin.multiplyBy(scale)
 		        .subtract(this._map._getNewPixelOrigin(center, zoom)).round();
@@ -199,16 +190,13 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		/// have been panned outside of the map.
 
 		if (!level.canvasRange.contains(tile.coords)) {
-			/// Possible improvement: Instead of resetting the canvas size,
-			/// calculate the canvas new offset based on
-			/// how out the tile is from the canvas range.
 			this._resetCanvasSize(level);
 		}
 
 		var offset = L.point(tile.coords.x, tile.coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
 
 // 		console.log('Should dump tile to canvas:', tile);
-// 		console.log('Should dump from tile coords:', tile.coords);
+		console.log('Dumping:', tile.coords, "at", offset );
 // 		console.log('Should dump to canvas px coords:', tile.coords, offset);
 
 		level.ctx.drawImage(tile.el, offset.x, offset.y);
