@@ -57,6 +57,49 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 	},
 
 
+	// Modify _pruneTiles so that the tiles which are still dumped in the canvas
+	// are not pruned away.
+	_pruneTiles: function () {
+		if (!this._map) {
+			return;
+		}
+
+		var key, tile;
+
+		var zoom = this._map.getZoom();
+		if (zoom > this.options.maxZoom ||
+			zoom < this.options.minZoom) {
+			this._removeAllTiles();
+			return;
+		}
+
+		for (key in this._tiles) {
+			tile = this._tiles[key];
+			tile.retain = tile.current;
+		}
+
+		for (key in this._tiles) {
+			tile = this._tiles[key];
+			if (tile.current && !tile.active) {
+				var coords = tile.coords;
+				if (!this._retainParent(coords.x, coords.y, coords.z, coords.z - 5)) {
+					this._retainChildren(coords.x, coords.y, coords.z, coords.z + 2);
+				}
+			}
+		}
+
+		for (key in this._tiles) {
+			if (!this._tiles[key].retain) {
+				// Magic goes here:
+				var tileZ = this._tiles[key].coords.z;
+				if (this._tileZoom !== tileZ || !(this._levels[tileZ].canvasRange.contains(this._tiles[key].coords))) {
+					this._removeTile(key);
+				}
+			}
+		}
+	},
+
+
 	_resetCanvasSize: function(level) {
 		var buff = this.options.keepBuffer,
 			pixelBounds = this._getTiledPixelBounds(map.getCenter()),
@@ -78,7 +121,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			// Resizing canvases erases the currently drawn content, I'm afraid.
 			var oldSize = {x: level.canvas.width, y: level.canvas.height};
 			var data = level.ctx.getImageData(0, 0, oldSize.x, oldSize.y);
-			console.info('Resizing canvas from ', oldSize, 'to ', neededSize);
+// 			console.info('Resizing canvas from ', oldSize, 'to ', neededSize);
 			level.canvas.width = neededSize.x;
 			level.canvas.height = neededSize.y;
 			level.ctx.putImageData(data, 0, 0, 0, 0, oldSize.x, oldSize.y);
@@ -88,7 +131,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		if (level.canvasRange) {
 			var offset = level.canvasRange.min.subtract(tileRange.min).scaleBy(this.getTileSize());
 
-			console.info('Offsetting by ', offset);
+// 			console.info('Offsetting by ', offset);
 
 			// By default, canvases copy things "on top of" existing pixels, but we want
 			// this to *replace* the existing pixels when doing a drawImage() call.
@@ -182,27 +225,27 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 
 	_dumpTileToCanvas: function(tile){
-
 		var level = this._levels[tile.coords.z];
 
-		/// TODO: Check if the tile is inside the currently visible map bounds
+		/// Check if the tile is inside the currently visible map bounds
 		/// There is a possible race condition when tiles are loaded after they
 		/// have been panned outside of the map.
-
 		if (!level.canvasRange.contains(tile.coords)) {
 			this._resetCanvasSize(level);
 		}
 
+		// Where in the canvas should this tile go?
 		var offset = L.point(tile.coords.x, tile.coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
 
 // 		console.log('Should dump tile to canvas:', tile);
-		console.log('Dumping:', tile.coords, "at", offset );
-// 		console.log('Should dump to canvas px coords:', tile.coords, offset);
+// 		console.log('Dumping:', tile.coords, "at", offset );
 
 		level.ctx.drawImage(tile.el, offset.x, offset.y);
 
-		L.DomUtil.remove(tile.el);
-
+		// Do not remove the tile itself, as it is needed to check if the whole
+		// level (and its canvas) should be removed (via level.el.children.length)
+// 		L.DomUtil.remove(tile.el);
+		tile.el.style.display = 'none';
 	},
 
 

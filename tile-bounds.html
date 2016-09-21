@@ -45,11 +45,17 @@
 </head>
 <body>
 
-	Stuff to test tilelayers as canvases to prevent the 1px tile gap.
+	<p>Stuff to test tilelayers as canvases to prevent the 1px tile gap.</p>
 
-	<button onclick='map.zoomIn(0.1)'> Zoom + 0.1 </button>
-	<button onclick='map.zoomOut(0.1)'> Zoom - 0.1 </button>
-
+	<div>
+		<button onclick='map.zoomIn(0.1)'> Zoom + 0.1 </button>
+		<button onclick='map.zoomOut(0.1)'> Zoom - 0.1 </button>
+		<span id='zoomlevel'></span>
+	</div>
+	<div>
+		<button onclick='toggleOverflow()'> Toggle container overflow </button>
+		<button onclick='toggleLayers()'> Toggle OSM/debug tilelayer</button>
+	</div>
 	<div id="map" class="map"></div>
 
 	<script type="text/javascript">
@@ -67,6 +73,9 @@
 				canvas.setAttribute('height', tileSize.y);
 
 				var ctx = canvas.getContext('2d');
+				ctx.fillStyle = 'rgba(245,245,220,0.3)';
+				ctx.fillRect(0, 0, tileSize.x, tileSize.y);
+
 				ctx.strokeStyle = 'green';
 				ctx.fillStyle = 'green';
 
@@ -83,24 +92,22 @@
 			}
 		});
 
-
-
-
 		var mapopts =  {
 			zoomSnap: 0.1
 		};
 
-		var osmUrl = 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+		var osmUrl = 'http://{s}.osm.maptiles.xyz/{z}/{x}/{y}.png',
 			osmAttrib = '&copy; <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 			osm = new L.TileLayer.NoGap(osmUrl, {
+// 			osm = new L.TileLayer(osmUrl, {
 				maxZoom: 18,
 				attribution: osmAttrib,
 				keepBuffer: 0,
-				tileSize: tileSize
+// 				tileSize: tileSize
 			});
 
 		var kittenUrl = 'https://placekitten.com/256/256',
-			kittens = new L.TileLayer.NoGap(osmUrl, {
+			kittens = new L.TileLayer.NoGap(kittenUrl, {
 				maxZoom: 18,
 				attribution: "Placekitten",
 				keepBuffer: 0,
@@ -133,6 +140,26 @@
 
 		map.addLayer(grid);
 
+
+
+		function toggleOverflow(){
+			var c = map.getContainer();
+			c.style.overflow = c.style.overflow === 'hidden' ? 'visible' : 'hidden';
+		}
+
+		function toggleLayers(){
+			if (map.hasLayer(osm)) {
+				osm.remove();
+				debug.addTo(map);
+			} else {
+				debug.remove();
+				osm.addTo(map);
+			}
+		}
+
+		map.on('zoomend', function(){
+			document.getElementById('zoomlevel').innerHTML = map.getZoom();
+		});
 	</script>
 </body>
 </html>
