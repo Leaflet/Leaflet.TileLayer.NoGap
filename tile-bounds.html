@@ -86,7 +86,6 @@
 					tileSize.x / 4 + Math.random() * 10,
 					tileSize.y * 3/4 + Math.random() * 10);
 
-
 // 				return tile;
 				return canvas.toDataURL();
 			}
@@ -119,6 +118,14 @@
 			keepBuffer: 0,
 		});
 
+		// Hack to provide some synthetic delay
+		debug.createTile = function(coords, done){
+			var tile = document.createElement('img');
+			tile.src = this.getTileUrl(coords);
+			setTimeout(done, Math.random()*5000);
+			return tile;
+		};
+
 		var map = L.map('map', mapopts).setView([0,0],0);
 
 // 		map.addLayer(osm);
@@ -139,8 +146,6 @@
 		};
 
 		map.addLayer(grid);
-
-
 
 		function toggleOverflow(){
 			var c = map.getContainer();

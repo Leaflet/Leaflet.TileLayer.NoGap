@@ -56,49 +56,20 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		return level;
 	},
 
+	_removeTile(key) {
+		var tile = this._tiles[key];
+		var level = this._levels[tile.coords.z];
+		var tileSize = this.getTileSize();
 
-	// Modify _pruneTiles so that the tiles which are still dumped in the canvas
-	// are not pruned away.
-	_pruneTiles: function () {
-		if (!this._map) {
-			return;
+		if (level) {
+			// Where in the canvas should this tile go?
+			var offset = L.point(tile.coords.x, tile.coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
+
+			level.ctx.clearRect(offset.x, offset.y, tileSize.x, tileSize.y);
 		}
 
-		var key, tile;
-
-		var zoom = this._map.getZoom();
-		if (zoom > this.options.maxZoom ||
-			zoom < this.options.minZoom) {
-			this._removeAllTiles();
-			return;
-		}
-
-		for (key in this._tiles) {
-			tile = this._tiles[key];
-			tile.retain = tile.current;
-		}
-
-		for (key in this._tiles) {
-			tile = this._tiles[key];
-			if (tile.current && !tile.active) {
-				var coords = tile.coords;
-				if (!this._retainParent(coords.x, coords.y, coords.z, coords.z - 5)) {
-					this._retainChildren(coords.x, coords.y, coords.z, coords.z + 2);
-				}
-			}
-		}
-
-		for (key in this._tiles) {
-			if (!this._tiles[key].retain) {
-				// Magic goes here:
-				var tileZ = this._tiles[key].coords.z;
-				if (this._tileZoom !== tileZ || !(this._levels[tileZ].canvasRange.contains(this._tiles[key].coords))) {
-					this._removeTile(key);
-				}
-			}
-		}
+		L.GridLayer.prototype._removeTile.call(this, key);
 	},
-
 
 	_resetCanvasSize: function(level) {
 		var buff = this.options.keepBuffer,
@@ -251,38 +222,4 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 
 });
-
-
-
-/// HACK!!!
-/// Make the zoom animations much, much slower by tweaking a hard-coded timeout value
-/*
-L.Map.include({
-	_animateZoom: function (center, zoom, startAnim, noUpdate) {
-		if (startAnim) {
-			this._animatingZoom = true;
-
-			// remember what center/zoom to set after animation
-			this._animateToCenter = center;
-			this._animateToZoom = zoom;
-
-			L.DomUtil.addClass(this._mapPane, 'leaflet-zoom-anim');
-		}
-
-		// @event zoomanim: ZoomAnimEvent
-		// Fired on every frame of a zoom animation
-		this.fire('zoomanim', {
-			center: center,
-			zoom: zoom,
-			noUpdate: noUpdate
-		});
-
-		// Work around webkit not firing 'transitionend', see https://github.com/Leaflet/Leaflet/issues/3689, 2693
-		//// HACK!!!!
-// 		setTimeout(L.bind(this._onZoomTransitionEnd, this), 250);
-		setTimeout(L.bind(this._onZoomTransitionEnd, this), 5050);
-		//// HACK!!!!
-	}
-});*/
-
 
