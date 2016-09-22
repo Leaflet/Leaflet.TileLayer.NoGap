@@ -20,6 +20,8 @@
 
 	canvas {
 		border: 1px dotted black;
+		margin-top: -1px;
+		margin-left:-1px;
 	}
 
 	div.tile-coords {
@@ -46,17 +48,29 @@
 <body>
 
 	<p>Stuff to test tilelayers as canvases to prevent the 1px tile gap.</p>
-	<p>Red tiles are from a <code>GridLayer</code>, green tiles are from a <code>TileLayer.NoGap</code>. They should always match.</p>
 
-
-	<button onclick='map.zoomIn(0.1)'> Zoom + 0.1 </button>
-	<button onclick='map.zoomOut(0.1)'> Zoom - 0.1 </button>
-
+	<div>
+		<button onclick='map.zoomIn(0.1)'> Zoom + 0.1 </button>
+		<button onclick='map.zoomOut(0.1)'> Zoom - 0.1 </button>
+		<span id='zoomlevel'></span>
+	</div>
+	<div>
+		<button onclick='toggleOverflow()'> Toggle container overflow </button>
+		<button onclick='toggleLayers()'> Toggle OSM/debug tilelayer</button>
+	</div>
 	<div id="map" class="map"></div>
 
 	<script type="text/javascript">
 
 		var tileSize = 128;
+
+
+		// In case we comment out the NoGap file
+		if (!L.TileLayer.NoGap) {
+			L.TileLayer.NoGap = L.TileLayer;
+		}
+
+
 
 // 		var DebugTileLayer = L.TileLayer.extend({
 		var DebugTileLayer = L.TileLayer.NoGap.extend({
@@ -69,6 +83,9 @@
 				canvas.setAttribute('height', tileSize.y);
 
 				var ctx = canvas.getContext('2d');
+				ctx.fillStyle = 'rgba(245,245,220,0.3)';
+				ctx.fillRect(0, 0, tileSize.x, tileSize.y);
+
 				ctx.strokeStyle = 'green';
 				ctx.fillStyle = 'green';
 
@@ -79,25 +96,52 @@
 					tileSize.x / 4 + Math.random() * 10,
 					tileSize.y * 3/4 + Math.random() * 10);
 
-
 // 				return tile;
 				return canvas.toDataURL();
 			}
 		});
 
-
 		var mapopts =  {
 			zoomSnap: 0.1
 		};
 
+		var osmUrl = 'http://{s}.osm.maptiles.xyz/{z}/{x}/{y}.png',
+			osmAttrib = '&copy; <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+			osm = new L.TileLayer.NoGap(osmUrl, {
+// 			osm = new L.TileLayer(osmUrl, {
+				maxZoom: 18,
+				attribution: osmAttrib,
+				keepBuffer: 0,
+				zIndex: -10
+// 				tileSize: tileSize
+			});
+
+		var kittenUrl = 'https://placekitten.com/256/256',
+			kittens = new L.TileLayer.NoGap(kittenUrl, {
+				maxZoom: 18,
+				attribution: "Placekitten",
+				keepBuffer: 0,
+				tileSize: tileSize
+			});
 
 		var debug = new DebugTileLayer(null, {
 			tileSize: tileSize,
 			keepBuffer: 0,
+			zIndex: 10
 		});
+
+		// Hack to provide some synthetic delay
+		debug.createTile = function(coords, done){
+			var tile = document.createElement('img');
+			tile.src = this.getTileUrl(coords);
+			setTimeout(done, Math.random()*5000);
+			return tile;
+		};
 
 		var map = L.map('map', mapopts).setView([0,0],0);
 
+// 		map.addLayer(osm);
+// 		map.addLayer(kittens);
 		map.addLayer(debug);
 
 		var grid = L.gridLayer({
@@ -115,6 +159,37 @@
 
 		map.addLayer(grid);
 
+		function toggleOverflow(){
+			var c = map.getContainer();
+			if (c.style.overflow === 'hidden') {
+				c.style.overflow = 'visible';
+				c.style.margin = '256px';
+				c.style.width = 'calc( 100vh - 512px )';
+				c.style.height = 'calc( 100vw - 512px )'
+			} else {
+				c.style.overflow = 'hidden';
+				c.style.margin = 0;
+				c.style.width = '100vh';
+				c.style.height = 'calc( 100vw - 300px )'
+			}
+			map.invalidateSize();
+		}
+
+		function toggleLayers(){
+			if (map.hasLayer(osm)) {
+				osm.remove();
+				debug.addTo(map);
+				map.getContainer().style.background = '#ddd';
+			} else {
+				debug.remove();
+				osm.addTo(map);
+				map.getContainer().style.background = 'red';
+			}
+		}
+
+		map.on('zoomend', function(){
+			document.getElementById('zoomlevel').innerHTML = map.getZoom();
+		});
 	</script>
 </body>
 </html>

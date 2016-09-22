@@ -2,13 +2,14 @@
 
 L.TileLayer.NoGap = L.TileLayer.extend({
 
-// 	options: {
-// 		/// TODO: This should instead check for the crossOrigin option and enable/disable functionality
-// 		/// accordingly.
-// // 		crossOrigin: false
-// 	},
+	options: {
+		// @option dumpToCanvas: Boolean = true
+		// Whether to dump loaded tiles to a `<canvas>` to prevent some rendering
+		// artifacts. (Disabled if the browser doesn't support `<canvas>`)
+		dumpToCanvas: L.Browser.canvas
+	},
 
-	// Full rewrite of L.GridLayer._updateLevels
+	// Full rewrite of L.GridLayer._updateLevels to support dumpToCanvas
 	_updateLevels() {
 		var zoom = this._tileZoom,
 		maxZoom = this.options.maxZoom;
@@ -19,10 +20,14 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 // 			console.log(this._levels[z].el.children.length, (zoom - z));
 			if (this._levels[z].el.children.length || (zoom - z) === 0) {
 				this._levels[z].el.style.zIndex = maxZoom - Math.abs(zoom - z);
-				this._levels[z].canvas.style.zIndex = maxZoom - Math.abs(zoom - z);
+				if (this.options.dumpToCanvas) {
+					this._levels[z].canvas.style.zIndex = maxZoom - Math.abs(zoom - z);
+				}
 			} else {
 				L.DomUtil.remove(this._levels[z].el);
-				L.DomUtil.remove(this._levels[z].canvas);
+				if (this.options.dumpToCanvas) {
+					L.DomUtil.remove(this._levels[z].canvas);
+				}
 				this._removeTilesAtZoom(z);
 				delete this._levels[z];
 			}
@@ -45,11 +50,12 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			// force the browser to consider the newly added element for transition
 			L.Util.falseFn(level.el.offsetWidth);
 
+			if (this.options.dumpToCanvas) {
+				level.canvas = L.DomUtil.create('canvas', 'leaflet-tile-container leaflet-zoom-animated', this._container);
+				level.ctx = level.canvas.getContext('2d');
 
-			level.canvas = L.DomUtil.create('canvas', 'leaflet-tile-container leaflet-zoom-animated', this._container);
-			level.ctx = level.canvas.getContext('2d');
-
-			this._resetCanvasSize(level);
+				this._resetCanvasSize(level);
+			}
 		}
 
 		this._level = level;
@@ -57,15 +63,17 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 	},
 
 	_removeTile(key) {
-		var tile = this._tiles[key];
-		var level = this._levels[tile.coords.z];
-		var tileSize = this.getTileSize();
+		if (this.options.dumpToCanvas) {
+			var tile = this._tiles[key];
+			var level = this._levels[tile.coords.z];
+			var tileSize = this.getTileSize();
 
-		if (level) {
-			// Where in the canvas should this tile go?
-			var offset = L.point(tile.coords.x, tile.coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
+			if (level) {
+				// Where in the canvas should this tile go?
+				var offset = L.point(tile.coords.x, tile.coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
 
-			level.ctx.clearRect(offset.x, offset.y, tileSize.x, tileSize.y);
+				level.ctx.clearRect(offset.x, offset.y, tileSize.x, tileSize.y);
+			}
 		}
 
 		L.GridLayer.prototype._removeTile.call(this, key);
@@ -142,7 +150,9 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 	/// set transform/position of canvas, in addition to the transform/position of the individual tile container
 	_setZoomTransform: function(level, center, zoom) {
 		L.TileLayer.prototype._setZoomTransform.call(this, level, center, zoom);
-		this._setCanvasZoomTransform(level, center, zoom);
+		if (this.options.dumpToCanvas) {
+			this._setCanvasZoomTransform(level, center, zoom);
+		}
 	},
 
 
@@ -189,9 +199,8 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			} else {
 				if (tile.active) {
 					willPrune = true;
-				} else {
-					this._dumpTileToCanvas(tile);	////// !!!!!!
-					/// TODO: Do this only if canvas is being used
+				} else if (this.options.dumpToCanvas) {
+					this._dumpTileToCanvas(tile);
 				}
 				tile.active = true;
 			}
@@ -204,7 +213,6 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			this._fadeFrame = L.Util.requestAnimFrame(this._updateOpacity, this);
 		}
 	},
-
 
 	_dumpTileToCanvas: function(tile){
 		var level = this._levels[tile.coords.z];
