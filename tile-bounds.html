@@ -20,6 +20,8 @@
 
 	canvas {
 		border: 1px dotted black;
+		margin-top: -1px;
+		margin-left:-1px;
 	}
 
 	div.tile-coords {
@@ -62,6 +64,14 @@
 
 		var tileSize = 128;
 
+
+		// In case we comment out the NoGap file
+		if (!L.TileLayer.NoGap) {
+			L.TileLayer.NoGap = L.TileLayer;
+		}
+
+
+
 // 		var DebugTileLayer = L.TileLayer.extend({
 		var DebugTileLayer = L.TileLayer.NoGap.extend({
 			getTileUrl: function getTileUrl(coords) {
@@ -102,6 +112,7 @@
 				maxZoom: 18,
 				attribution: osmAttrib,
 				keepBuffer: 0,
+				zIndex: -10
 // 				tileSize: tileSize
 			});
 
@@ -116,6 +127,7 @@
 		var debug = new DebugTileLayer(null, {
 			tileSize: tileSize,
 			keepBuffer: 0,
+			zIndex: 10
 		});
 
 		// Hack to provide some synthetic delay
@@ -149,16 +161,29 @@
 
 		function toggleOverflow(){
 			var c = map.getContainer();
-			c.style.overflow = c.style.overflow === 'hidden' ? 'visible' : 'hidden';
+			if (c.style.overflow === 'hidden') {
+				c.style.overflow = 'visible';
+				c.style.margin = '256px';
+				c.style.width = 'calc( 100vh - 512px )';
+				c.style.height = 'calc( 100vw - 512px )'
+			} else {
+				c.style.overflow = 'hidden';
+				c.style.margin = 0;
+				c.style.width = '100vh';
+				c.style.height = 'calc( 100vw - 300px )'
+			}
+			map.invalidateSize();
 		}
 
 		function toggleLayers(){
 			if (map.hasLayer(osm)) {
 				osm.remove();
 				debug.addTo(map);
+				map.getContainer().style.background = '#ddd';
 			} else {
 				debug.remove();
 				osm.addTo(map);
+				map.getContainer().style.background = 'red';
 			}
 		}
 

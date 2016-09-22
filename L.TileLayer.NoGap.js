@@ -153,6 +153,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		}
 	},
 
+
 	// Rewrite _updateOpacity to make a func call to dump the faded-in tile into the canvas
 	_updateOpacity: function () {
 		if (!this._map) { return; }
