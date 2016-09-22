@@ -2,11 +2,11 @@
 
 L.TileLayer.NoGap = L.TileLayer.extend({
 
-	options: {
-		/// TODO: This should instead check for the crossOrigin option and enable/disable functionality
-		/// accordingly.
-		crossOrigin: true
-	},
+// 	options: {
+// 		/// TODO: This should instead check for the crossOrigin option and enable/disable functionality
+// 		/// accordingly.
+// // 		crossOrigin: false
+// 	},
 
 	// Full rewrite of L.GridLayer._updateLevels
 	_updateLevels() {
@@ -90,12 +90,22 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		// Resize the canvas, if needed, and only to make it bigger.
 		if (neededSize.x > level.canvas.width || neededSize.y > level.canvas.height) {
 			// Resizing canvases erases the currently drawn content, I'm afraid.
+			// To keep it, dump the pixels to another canvas, then display it on
+			// top. This could be done with getImageData/putImageData, but that
+			// would break for tainted canvases (in non-CORS tilesets)
 			var oldSize = {x: level.canvas.width, y: level.canvas.height};
-			var data = level.ctx.getImageData(0, 0, oldSize.x, oldSize.y);
 // 			console.info('Resizing canvas from ', oldSize, 'to ', neededSize);
+
+			var tmpCanvas = L.DomUtil.create('canvas');
+			tmpCanvas.width = oldSize.x;
+			tmpCanvas.height = oldSize.y;
+			tmpCanvas.getContext('2d').drawImage(level.canvas, 0, 0);
+// 			var data = level.ctx.getImageData(0, 0, oldSize.x, oldSize.y);
+
 			level.canvas.width = neededSize.x;
 			level.canvas.height = neededSize.y;
-			level.ctx.putImageData(data, 0, 0, 0, 0, oldSize.x, oldSize.y);
+			level.ctx.drawImage(tmpCanvas, 0, 0);
+// 			level.ctx.putImageData(data, 0, 0, 0, 0, oldSize.x, oldSize.y);
 		}
 
 		// Translate the canvas contents if it's moved around
@@ -198,6 +208,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 	_dumpTileToCanvas: function(tile){
 		var level = this._levels[tile.coords.z];
+		var tileSize = this.getTileSize();
 
 		/// Check if the tile is inside the currently visible map bounds
 		/// There is a possible race condition when tiles are loaded after they
@@ -212,12 +223,16 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 // 		console.log('Should dump tile to canvas:', tile);
 // 		console.log('Dumping:', tile.coords, "at", offset );
 
-		level.ctx.drawImage(tile.el, offset.x, offset.y);
+		level.ctx.drawImage(tile.el, offset.x, offset.y, tileSize.x, tileSize.y);
 
 		// Do not remove the tile itself, as it is needed to check if the whole
 		// level (and its canvas) should be removed (via level.el.children.length)
 // 		L.DomUtil.remove(tile.el);
 		tile.el.style.display = 'none';
+
+
+		/// TODO: Clear the pixels of other levels' canvases where they overlap
+		/// this newly dumped tile.
 	},
 
 
