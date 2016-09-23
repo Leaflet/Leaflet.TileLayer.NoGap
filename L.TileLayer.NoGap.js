@@ -5,12 +5,12 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 	options: {
 		// @option dumpToCanvas: Boolean = true
 		// Whether to dump loaded tiles to a `<canvas>` to prevent some rendering
-		// artifacts. (Disabled if the browser doesn't support `<canvas>`)
-		dumpToCanvas: L.Browser.canvas
+		// artifacts. (Disabled by default in IE)
+		dumpToCanvas: L.Browser.canvas && !L.Browser.ie
 	},
 
 	// Full rewrite of L.GridLayer._updateLevels to support dumpToCanvas
-	_updateLevels() {
+	_updateLevels: function() {
 		var zoom = this._tileZoom,
 		maxZoom = this.options.maxZoom;
 
@@ -53,7 +53,6 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 			if (this.options.dumpToCanvas) {
 				level.canvas = L.DomUtil.create('canvas', 'leaflet-tile-container leaflet-zoom-animated', this._container);
 				level.ctx = level.canvas.getContext('2d');
-
 				this._resetCanvasSize(level);
 			}
 		}
@@ -62,7 +61,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		return level;
 	},
 
-	_removeTile(key) {
+	_removeTile: function(key) {
 		if (this.options.dumpToCanvas) {
 			var tile = this._tiles[key];
 			var level = this._levels[tile.coords.z];
@@ -105,13 +104,13 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 // 			console.info('Resizing canvas from ', oldSize, 'to ', neededSize);
 
 			var tmpCanvas = L.DomUtil.create('canvas');
-			tmpCanvas.width = oldSize.x;
-			tmpCanvas.height = oldSize.y;
+			tmpCanvas.style.width  = (tmpCanvas.width  = oldSize.x) + 'px';
+			tmpCanvas.style.height = (tmpCanvas.height = oldSize.y) + 'px';
 			tmpCanvas.getContext('2d').drawImage(level.canvas, 0, 0);
 // 			var data = level.ctx.getImageData(0, 0, oldSize.x, oldSize.y);
 
-			level.canvas.width = neededSize.x;
-			level.canvas.height = neededSize.y;
+			level.canvas.style.width  = (level.canvas.width  = neededSize.x) + 'px';
+			level.canvas.style.height = (level.canvas.height = neededSize.y) + 'px';
 			level.ctx.drawImage(tmpCanvas, 0, 0);
 // 			level.ctx.putImageData(data, 0, 0, 0, 0, oldSize.x, oldSize.y);
 		}
@@ -122,13 +121,27 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 // 			console.info('Offsetting by ', offset);
 
-			// By default, canvases copy things "on top of" existing pixels, but we want
-			// this to *replace* the existing pixels when doing a drawImage() call.
-			// This will also clear the sides, so no clearRect() calls are needed to make room
-			// for the new tiles.
-			level.ctx.globalCompositeOperation = 'copy';
-			level.ctx.drawImage(level.canvas, offset.x, offset.y);
-			level.ctx.globalCompositeOperation = 'source-over';
+			if (!L.Browser.safari) {
+				// By default, canvases copy things "on top of" existing pixels, but we want
+				// this to *replace* the existing pixels when doing a drawImage() call.
+				// This will also clear the sides, so no clearRect() calls are needed to make room
+				// for the new tiles.
+				level.ctx.globalCompositeOperation = 'copy';
+				level.ctx.drawImage(level.canvas, offset.x, offset.y);
+				level.ctx.globalCompositeOperation = 'source-over';
+			} else {
+				// Safari clears the canvas when copying from itself :-(
+				if (!this._tmpCanvas) {
+					var t = this._tmpCanvas = L.DomUtil.create('canvas');
+					t.width  = level.canvas.width;
+					t.height = level.canvas.height;
+					this._tmpContext = t.getContext('2d');
+				}
+				this._tmpContext.clearRect(0, 0, level.canvas.width, level.canvas.height);
+				this._tmpContext.drawImage(level.canvas, 0, 0);
+				level.ctx.clearRect(0, 0, level.canvas.width, level.canvas.height);
+				level.ctx.drawImage(this._tmpCanvas, offset.x, offset.y);
+			}
 
 			mustRepositionCanvas = true;	// Wait until new props are set
 		}

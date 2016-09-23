@@ -11,26 +11,37 @@
 	<script type="text/javascript" src="L.TileLayer.NoGap.js"></script>
 	<style>
 	#map {
-		margin: 256px;
-		width: auto;
-		overflow: visible;
-		width: calc( 100vw - 512px );
-		height: calc( 100vh - 512px );
+/* 		margin: 256px; */
+/* 		width: auto; */
+		overflow: hidden;
+		width: 100vw;
+		height: calc( 100vh - 100px );
+		background: red;
 	}
 
-	canvas {
+/*	canvas {
 		border: 1px dotted black;
 		margin-top: -1px;
 		margin-left:-1px;
-	}
+	}*/
 
-	div.tile-coords {
+	div.tile-coords128 {
 		line-height: 128px;
 		text-align: center;
 		color: red;
 		font-size: 12.8px;
 		max-width: 128px;
 	}
+
+	div.tile-coords256 {
+		line-height: 256px;
+		text-align: center;
+		color: red;
+		font-size: 25.6px;
+		max-width: 256px;
+	}
+
+	body { margin: 0; }
 
 /* 	Make the zoom animation slower */
 
@@ -47,16 +58,14 @@
 </head>
 <body>
 
-	<p>Stuff to test tilelayers as canvases to prevent the 1px tile gap.</p>
+<!-- 	<p>Stuff to test tilelayers as canvases to prevent the 1px tile gap.</p> -->
 
 	<div>
-		<button onclick='map.zoomIn(0.1)'> Zoom + 0.1 </button>
-		<button onclick='map.zoomOut(0.1)'> Zoom - 0.1 </button>
-		<span id='zoomlevel'></span>
-	</div>
-	<div>
-		<button onclick='toggleOverflow()'> Toggle container overflow </button>
-		<button onclick='toggleLayers()'> Toggle OSM/debug tilelayer</button>
+		<button onclick='map.zoomIn(0.1)'> + 0.1 </button>
+		<button onclick='map.zoomOut(0.1)'> - 0.1 </button>
+		<span id='zoomlevel' style='width: 5em; display:inline-block'></span>
+		<button onclick='toggleOverflow()'> Overflow </button>
+		<button onclick='toggleLayers()'> OSM/debug </button>
 	</div>
 	<div id="map" class="map"></div>
 
@@ -140,37 +149,47 @@
 
 		var map = L.map('map', mapopts).setView([0,0],0);
 
-// 		map.addLayer(osm);
+		map.addLayer(osm);
 // 		map.addLayer(kittens);
-		map.addLayer(debug);
+// 		map.addLayer(debug);
 
-		var grid = L.gridLayer({
+		var gridDebug = L.gridLayer({
 			attribution: 'Grid Layer',
 // 			tileSize: L.point(150, 80),
 			tileSize: tileSize
 		});
 
-		grid.createTile = function (coords) {
-			var tile = L.DomUtil.create('div', 'tile-coords');
-			tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
+		var gridOsm = L.gridLayer({
+			attribution: 'Grid Layer',
+// 			tileSize: L.point(150, 80),
+// 			tileSize: tileSize
+		});
 
+		gridDebug.createTile = function (coords) {
+			var tile = L.DomUtil.create('div', 'tile-coords128');
+			tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
+			return tile;
+		};
+		gridOsm.createTile = function (coords) {
+			var tile = L.DomUtil.create('div', 'tile-coords256');
+			tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
 			return tile;
 		};
 
-		map.addLayer(grid);
+		map.addLayer(gridOsm);
 
 		function toggleOverflow(){
 			var c = map.getContainer();
-			if (c.style.overflow === 'hidden') {
-				c.style.overflow = 'visible';
-				c.style.margin = '256px';
-				c.style.width = 'calc( 100vh - 512px )';
-				c.style.height = 'calc( 100vw - 512px )'
-			} else {
+			if (c.style.overflow === 'visible') {
 				c.style.overflow = 'hidden';
 				c.style.margin = 0;
-				c.style.width = '100vh';
-				c.style.height = 'calc( 100vw - 300px )'
+				c.style.height = 'calc( 100vh - 100px )';
+				c.style.width = '100vw'
+			} else {
+				c.style.overflow = 'visible';
+				c.style.margin = '256px';
+				c.style.height = 'calc( 100vh - 612px )';
+				c.style.width = 'calc( 100vw - 512px )'
 			}
 			map.invalidateSize();
 		}
@@ -178,11 +197,15 @@
 		function toggleLayers(){
 			if (map.hasLayer(osm)) {
 				osm.remove();
+				gridOsm.remove();
 				debug.addTo(map);
+				gridDebug.addTo(map);
 				map.getContainer().style.background = '#ddd';
 			} else {
 				debug.remove();
+				gridDebug.remove();
 				osm.addTo(map);
+				gridOsm.addTo(map);
 				map.getContainer().style.background = 'red';
 			}
 		}
@@ -193,3 +216,4 @@
 	</script>
 </body>
 </html>
+
