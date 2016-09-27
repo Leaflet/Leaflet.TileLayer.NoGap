@@ -80,7 +80,7 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 
 	_resetCanvasSize: function(level) {
 		var buff = this.options.keepBuffer,
-			pixelBounds = this._getTiledPixelBounds(map.getCenter()),
+			pixelBounds = this._getTiledPixelBounds(this._map.getCenter()),
 			tileRange = this._pxBoundsToTileRange(pixelBounds),
 			tileSize = this.getTileSize();
 
