@@ -17,7 +17,9 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		if (zoom === undefined) { return undefined; }
 
 		for (var z in this._levels) {
-// 			console.log(this._levels[z].el.children.length, (zoom - z));
+
+// 			console.log('Level ' + z + ': ' , this._levels[z].el.children.length, (zoom - z));
+
 			if (this._levels[z].el.children.length || (zoom - z) === 0) {
 				this._levels[z].el.style.zIndex = maxZoom - Math.abs(zoom - z);
 				if (this.options.dumpToCanvas) {
@@ -76,6 +78,20 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		}
 
 		L.GridLayer.prototype._removeTile.call(this, key);
+	},
+
+	// Full rewrite of L.GridLayer._invalidateAll to support dumpToCanvas
+	_invalidateAll: function () {
+		for (var z in this._levels) {
+			L.DomUtil.remove(this._levels[z].el);
+			if (this.options.dumpToCanvas) {
+				L.DomUtil.remove(this._levels[z].canvas);
+			}
+			delete this._levels[z];
+		}
+		this._removeAllTiles();
+
+		this._tileZoom = null;
 	},
 
 	_resetCanvasSize: function(level) {
