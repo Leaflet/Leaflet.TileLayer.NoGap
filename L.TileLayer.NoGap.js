@@ -1,6 +1,6 @@
 
 
-L.TileLayer.NoGap = L.TileLayer.extend({
+L.TileLayer.include({
 
 	options: {
 		// @option dumpToCanvas: Boolean = true
@@ -9,58 +9,24 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		dumpToCanvas: L.Browser.canvas && !L.Browser.ie
 	},
 
-	// Full rewrite of L.GridLayer._updateLevels to support dumpToCanvas
-	_updateLevels: function() {
-		var zoom = this._tileZoom,
-		maxZoom = this.options.maxZoom;
-
-		if (zoom === undefined) { return undefined; }
-
-		for (var z in this._levels) {
-
-// 			console.log('Level ' + z + ': ' , this._levels[z].el.children.length, (zoom - z));
-
-			if (this._levels[z].el.children.length || (zoom - z) === 0) {
-				this._levels[z].el.style.zIndex = maxZoom - Math.abs(zoom - z);
-				if (this.options.dumpToCanvas) {
-					this._levels[z].canvas.style.zIndex = maxZoom - Math.abs(zoom - z);
-				}
-			} else {
-				L.DomUtil.remove(this._levels[z].el);
-				if (this.options.dumpToCanvas) {
-					L.DomUtil.remove(this._levels[z].canvas);
-				}
-				this._removeTilesAtZoom(z);
-				delete this._levels[z];
-			}
+	_onUpdateLevel: function (z, zoom) {
+		if (this.options.dumpToCanvas) {
+			this._levels[z].canvas.style.zIndex = this.options.maxZoom - Math.abs(zoom - z);
 		}
+	},
 
-		var level = this._levels[zoom],
-		map = this._map;
-
-		if (!level) {
-			level = this._levels[zoom] = {};
-
-			level.el = L.DomUtil.create('div', 'leaflet-tile-container leaflet-zoom-animated', this._container);
-			level.el.style.zIndex = maxZoom;
-
-			level.origin = map.project(map.unproject(map.getPixelOrigin()), zoom).round();
-			level.zoom = zoom;
-
-			this._setZoomTransform(level, map.getCenter(), map.getZoom());
-
-			// force the browser to consider the newly added element for transition
-			L.Util.falseFn(level.el.offsetWidth);
-
-			if (this.options.dumpToCanvas) {
-				level.canvas = L.DomUtil.create('canvas', 'leaflet-tile-container leaflet-zoom-animated', this._container);
-				level.ctx = level.canvas.getContext('2d');
-				this._resetCanvasSize(level);
-			}
+	_onRemoveLevel: function (z) {
+		if (this.options.dumpToCanvas) {
+			DomUtil.remove(this._levels[z].canvas);
 		}
+	},
 
-		this._level = level;
-		return level;
+	_onCreateLevel: function (level) {
+		if (this.options.dumpToCanvas) {
+			level.canvas = DomUtil.create('canvas', 'leaflet-tile-container leaflet-zoom-animated', this._container);
+			level.ctx = level.canvas.getContext('2d');
+			this._resetCanvasSize(level);
+		}
 	},
 
 	_removeTile: function(key) {
@@ -78,20 +44,6 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		}
 
 		L.GridLayer.prototype._removeTile.call(this, key);
-	},
-
-	// Full rewrite of L.GridLayer._invalidateAll to support dumpToCanvas
-	_invalidateAll: function () {
-		for (var z in this._levels) {
-			L.DomUtil.remove(this._levels[z].el);
-			if (this.options.dumpToCanvas) {
-				L.DomUtil.remove(this._levels[z].canvas);
-			}
-			delete this._levels[z];
-		}
-		this._removeAllTiles();
-
-		this._tileZoom = null;
 	},
 
 	_resetCanvasSize: function(level) {
@@ -202,75 +154,47 @@ L.TileLayer.NoGap = L.TileLayer.extend({
 		}
 	},
 
+	_onOpaqueTile: function (tile) {
+		if (!this.options.dumpToCanvas) { return; }
 
-	// Rewrite _updateOpacity to make a func call to dump the faded-in tile into the canvas
-	_updateOpacity: function () {
-		if (!this._map) { return; }
+		this.dumpPixels(tile.coords, tile.el);
 
-		// IE doesn't inherit filter opacity properly, so we're forced to set it on tiles
-		if (L.Browser.ielt9) { return; }
-
-		L.DomUtil.setOpacity(this._container, this.options.opacity);
-
-		var now = +new Date(),
-		    nextFrame = false,
-		    willPrune = false;
-
-		for (var key in this._tiles) {
-			var tile = this._tiles[key];
-			if (!tile.current || !tile.loaded) { continue; }
-
-			var fade = Math.min(1, (now - tile.loaded) / 200);
-
-			L.DomUtil.setOpacity(tile.el, fade);
-			if (fade < 1) {
-				nextFrame = true;
-			} else {
-				if (tile.active) {
-					willPrune = true;
-				} else if (this.options.dumpToCanvas) {
-					this._dumpTileToCanvas(tile);
-				}
-				tile.active = true;
-			}
-		}
-
-		if (willPrune && !this._noPrune) { this._pruneTiles(); }
-
-		if (nextFrame) {
-			L.Util.cancelAnimFrame(this._fadeFrame);
-			this._fadeFrame = L.Util.requestAnimFrame(this._updateOpacity, this);
-		}
+		// Do not remove the tile itself, as it is needed to check if the whole
+		// level (and its canvas) should be removed (via level.el.children.length)
+		tile.el.style.display = 'none';
 	},
 
-	_dumpTileToCanvas: function(tile){
-		var level = this._levels[tile.coords.z];
-		var tileSize = this.getTileSize();
+	// @section Extension methods
+	// @uninheritable
 
-		/// Check if the tile is inside the currently visible map bounds
-		/// There is a possible race condition when tiles are loaded after they
-		/// have been panned outside of the map.
-		if (!level.canvasRange.contains(tile.coords)) {
+	// @method dumpPixels(coords: Object, imageSource: CanvasImageSource): this
+	// Dumps pixels from the given `CanvasImageSource` into the layer, into
+	// the space for the tile represented by the `coords` tile coordinates (an object
+	// like `{x: Number, y: Number, z: Number}`; the image source must have the
+	// same size as the `tileSize` option for the layer. Has no effect if `dumpToCanvas`
+	// is `false`.
+	dumpPixels: function (coords, imageSource) {
+		var level = this._levels[coords.z],
+		    tileSize = this.getTileSize();
+
+		if (!level.canvasRange || !this.options.dumpToCanvas) { return; }
+
+		// Check if the tile is inside the currently visible map bounds
+		// There is a possible race condition when tiles are loaded after they
+		// have been panned outside of the map.
+		if (!level.canvasRange.contains(coords)) {
 			this._resetCanvasSize(level);
 		}
 
 		// Where in the canvas should this tile go?
-		var offset = L.point(tile.coords.x, tile.coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
+		var offset = toPoint(coords.x, coords.y).subtract(level.canvasRange.min).scaleBy(this.getTileSize());
 
-// 		console.log('Should dump tile to canvas:', tile);
-// 		console.log('Dumping:', tile.coords, "at", offset );
+		level.ctx.drawImage(imageSource, offset.x, offset.y, tileSize.x, tileSize.y);
 
-		level.ctx.drawImage(tile.el, offset.x, offset.y, tileSize.x, tileSize.y);
-
-		// Do not remove the tile itself, as it is needed to check if the whole
-		// level (and its canvas) should be removed (via level.el.children.length)
-// 		L.DomUtil.remove(tile.el);
-		tile.el.style.display = 'none';
-
-
-		/// TODO: Clear the pixels of other levels' canvases where they overlap
-		/// this newly dumped tile.
-	},
+		// TODO: Clear the pixels of other levels' canvases where they overlap
+		// this newly dumped tile.
+		return this;
+	}
 
 
 
