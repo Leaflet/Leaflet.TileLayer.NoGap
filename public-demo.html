@@ -5,6 +5,8 @@
 
 <link href="https://leafletjs-cdn.s3.amazonaws.com/content/leaflet/master/leaflet.css" rel="stylesheet" type="text/css" />
 <script src="https://leafletjs-cdn.s3.amazonaws.com/content/leaflet/master/leaflet-src.js"></script>
+<!-- 	<link rel="stylesheet" href="../Leaflet/dist/leaflet.css" /> -->
+<!-- 	<script type="text/javascript" src="../Leaflet/dist/leaflet-src.js"></script> -->
 
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -114,7 +116,7 @@
 			zoomSnap: 0.1
 		};
 
-		var osmUrl = 'http://{s}.osm.maptiles.xyz/{z}/{x}/{y}.png',
+		var osmUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 			osmAttrib = '&copy; <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 			osm = new L.TileLayer.NoGap(osmUrl, {
 // 			osm = new L.TileLayer(osmUrl, {
