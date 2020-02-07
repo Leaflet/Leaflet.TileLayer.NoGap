@@ -185,8 +185,21 @@ L.TileLayer.include({
 			return;
 		}
 
-		this.dumpPixels(tile.coords, tile.el);
+		// Guard against an NS_ERROR_NOT_AVAILABLE (or similar) exception
+		// when a non-image-tile has been loaded (e.g. a WMS error).
+		// Checking for tile.el.complete is not enough, as it has been
+		// already marked as loaded and ready somehow.
+		try {
+			this.dumpPixels(tile.coords, tile.el);
+		} catch (ex) {
+			return this.fire("tileerror", {
+				error: "Could not copy tile pixels: " + ex,
+				tile: tile,
+				coods: tile.coords,
+			});
+		}
 
+		// If dumping the pixels was successful, then hide the tile.
 		// Do not remove the tile itself, as it is needed to check if the whole
 		// level (and its canvas) should be removed (via level.el.children.length)
 		tile.el.style.display = "none";
