@@ -1,0 +1,11 @@
+{
+  "name": "Leaflet.TileLayer.NoGap",
+  "version": "0.3.0",
+  "prettier": {
+    "printWidth": 85,
+    "tabWidth": 4,
+    "useTabs": true,
+    "trailingComma": "es5",
+    "arrowParens": "always"
+  }
+}
