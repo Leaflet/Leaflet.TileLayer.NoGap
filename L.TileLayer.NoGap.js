@@ -1,6 +1,13 @@
 // @class TileLayer
 
-L.TileLayer.mergeOptions({
+import { TileLayer, tileLayer, GridLayer, Browser, DomUtil, point, bounds } from "leaflet";
+
+export { TileLayer, tileLayer, options, includes };
+
+TileLayer.mergeOptions(options);
+TileLayer.include(includes)
+
+const options = {
 	// @option keepBuffer
 	// The amount of tiles outside the visible map area to be kept in the stitched
 	// `TileLayer`.
@@ -8,10 +15,10 @@ L.TileLayer.mergeOptions({
 	// @option dumpToCanvas: Boolean = true
 	// Whether to dump loaded tiles to a `<canvas>` to prevent some rendering
 	// artifacts. (Disabled by default in IE)
-	dumpToCanvas: L.Browser.canvas && !L.Browser.ie,
-});
+	dumpToCanvas: Browser.canvas && !Browser.ie,
+}
 
-L.TileLayer.include({
+const includes = {
 	_onUpdateLevel: function(z, zoom) {
 		if (this.options.dumpToCanvas) {
 			this._levels[z].canvas.style.zIndex =
@@ -21,13 +28,13 @@ L.TileLayer.include({
 
 	_onRemoveLevel: function(z) {
 		if (this.options.dumpToCanvas) {
-			L.DomUtil.remove(this._levels[z].canvas);
+			DomUtil.remove(this._levels[z].canvas);
 		}
 	},
 
 	_onCreateLevel: function(level) {
 		if (this.options.dumpToCanvas) {
-			level.canvas = L.DomUtil.create(
+			level.canvas = DomUtil.create(
 				"canvas",
 				"leaflet-tile-container leaflet-zoom-animated",
 				this._container
@@ -45,7 +52,7 @@ L.TileLayer.include({
 
 			if (level) {
 				// Where in the canvas should this tile go?
-				var offset = L.point(tile.coords.x, tile.coords.y)
+				var offset = point(tile.coords.x, tile.coords.y)
 					.subtract(level.canvasRange.min)
 					.scaleBy(this.getTileSize());
 
@@ -53,7 +60,7 @@ L.TileLayer.include({
 			}
 		}
 
-		L.GridLayer.prototype._removeTile.call(this, key);
+		GridLayer.prototype._removeTile.call(this, key);
 	},
 
 	_resetCanvasSize: function(level) {
@@ -65,7 +72,7 @@ L.TileLayer.include({
 		tileRange.min = tileRange.min.subtract([buff, buff]); // This adds the no-prune buffer
 		tileRange.max = tileRange.max.add([buff + 1, buff + 1]);
 
-		var pixelRange = L.bounds(
+		var pixelRange = bounds(
 				tileRange.min.scaleBy(tileSize),
 				tileRange.max.add([1, 1]).scaleBy(tileSize) // This prevents an off-by-one when checking if tiles are inside
 			),
@@ -84,7 +91,7 @@ L.TileLayer.include({
 			var oldSize = { x: level.canvas.width, y: level.canvas.height };
 			// console.info('Resizing canvas from ', oldSize, 'to ', neededSize);
 
-			var tmpCanvas = L.DomUtil.create("canvas");
+			var tmpCanvas = DomUtil.create("canvas");
 			tmpCanvas.style.width = (tmpCanvas.width = oldSize.x) + "px";
 			tmpCanvas.style.height = (tmpCanvas.height = oldSize.y) + "px";
 			tmpCanvas.getContext("2d").drawImage(level.canvas, 0, 0);
@@ -104,7 +111,7 @@ L.TileLayer.include({
 
 			// 			console.info('Offsetting by ', offset);
 
-			if (!L.Browser.safari) {
+			if (!Browser.safari) {
 				// By default, canvases copy things "on top of" existing pixels, but we want
 				// this to *replace* the existing pixels when doing a drawImage() call.
 				// This will also clear the sides, so no clearRect() calls are needed to make room
@@ -115,7 +122,7 @@ L.TileLayer.include({
 			} else {
 				// Safari clears the canvas when copying from itself :-(
 				if (!this._tmpCanvas) {
-					var t = (this._tmpCanvas = L.DomUtil.create("canvas"));
+					var t = (this._tmpCanvas = DomUtil.create("canvas"));
 					t.width = level.canvas.width;
 					t.height = level.canvas.height;
 					this._tmpContext = t.getContext("2d");
@@ -153,7 +160,7 @@ L.TileLayer.include({
 
 	/// set transform/position of canvas, in addition to the transform/position of the individual tile container
 	_setZoomTransform: function(level, center, zoom) {
-		L.GridLayer.prototype._setZoomTransform.call(this, level, center, zoom);
+		GridLayer.prototype._setZoomTransform.call(this, level, center, zoom);
 		if (this.options.dumpToCanvas) {
 			this._setCanvasZoomTransform(level, center, zoom);
 		}
@@ -173,10 +180,10 @@ L.TileLayer.include({
 				.subtract(this._map._getNewPixelOrigin(center, zoom))
 				.round();
 
-		if (L.Browser.any3d) {
-			L.DomUtil.setTransform(level.canvas, translate, scale);
+		if (Browser.any3d) {
+			DomUtil.setTransform(level.canvas, translate, scale);
 		} else {
-			L.DomUtil.setPosition(level.canvas, translate);
+			DomUtil.setPosition(level.canvas, translate);
 		}
 	},
 
@@ -230,7 +237,7 @@ L.TileLayer.include({
 		}
 
 		// Where in the canvas should this tile go?
-		var offset = L.point(coords.x, coords.y)
+		var offset = point(coords.x, coords.y)
 			.subtract(level.canvasRange.min)
 			.scaleBy(this.getTileSize());
 
@@ -240,4 +247,4 @@ L.TileLayer.include({
 		// this newly dumped tile.
 		return this;
 	},
-});
+}
